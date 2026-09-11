@@ -1,0 +1,1211 @@
+/* ===========================================================================
+   TrustGraph — instrument panel
+   ---------------------------------------------------------------------------
+   Design tokens are fixed by §7.5 of the working paper and are not preferences.
+   Four semantic colours carry all meaning; no colour on this page is
+   decorative.
+
+   Two accessibility obligations, both derived from running the palette through
+   a CVD/contrast validator rather than from taste:
+
+   1. Worst adjacent CVD separation (both -> loss) is DeltaE 8.3 under deuteranopia,
+      which sits at the floor of the acceptable band. At that separation colour
+      alone is not a legal encoding, so every cell also carries a glyph.
+   2. `neither` (#24322F) has 1.26:1 contrast against the panel surface — by
+      design, it is the recessive "off-axis" state. Sub-3:1 fills oblige visible
+      labelling, which the real <table> markup and per-cell glyphs provide.
+   =========================================================================== */
+
+:root {
+  /* Surfaces */
+  --bg: #0b1413;
+  --panel: #10201e;
+  --panel-2: #14262340;
+  --hairline: #21403c;
+  --hairline-soft: #21403c66;
+
+  /* The four data states — semantic, never decorative */
+  --win: #e7a23e;
+  --loss: #c05b72;
+  --both: #3fae9f;
+  --neither: #24322f;
+
+  /* Ink */
+  --ink: #e8f1ef;
+  --ink-2: #9db5b1;
+  --ink-3: #6b857f;
+
+  /* Type */
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+
+  --radius: 2px;
+  --gap: 2px; /* the surface gap between adjacent data fills */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Instrument-panel chrome: a faint grid, not a gradient. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(var(--hairline-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hairline-soft) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.22;
+  z-index: 0;
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 28px 32px 96px;
+}
+
+/* --------------------------------------------------------------------------
+   Typography primitives
+   -------------------------------------------------------------------------- */
+
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+h1 {
+  font-size: 21px;
+}
+
+h2 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.muted {
+  color: var(--ink-3);
+}
+
+.dim {
+  color: var(--ink-2);
+}
+
+/* --------------------------------------------------------------------------
+   Masthead
+   -------------------------------------------------------------------------- */
+
+.masthead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 16px;
+  margin-bottom: 22px;
+}
+
+.masthead .lede {
+  max-width: 720px;
+  color: var(--ink-2);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.wordmark .tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border: 1px solid var(--hairline);
+  padding: 2px 6px;
+}
+
+.roster-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.roster-chips .chip {
+  border: 1px solid var(--hairline);
+  padding: 2px 7px;
+  color: var(--ink-2);
+}
+
+.roster-chips .chip.off {
+  opacity: 0.4;
+}
+
+/* --------------------------------------------------------------------------
+   Panels
+   -------------------------------------------------------------------------- */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+
+.panel > h2 {
+  margin-bottom: 12px;
+}
+
+.panel-note {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-top: 10px;
+  max-width: 90ch;
+}
+
+/* --------------------------------------------------------------------------
+   Form
+   -------------------------------------------------------------------------- */
+
+form.query {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(260px, 2.1fr) minmax(230px, 1.6fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.field label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+input[type="text"],
+input[type="number"] {
+  background: #0c1a18;
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  width: 100%;
+}
+
+input:focus-visible,
+button:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--both);
+  outline-offset: 1px;
+}
+
+input::placeholder {
+  color: #4a615c;
+}
+
+button.run {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--win);
+  color: #1a1206;
+  border: 1px solid var(--win);
+  padding: 9px 20px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button.run:hover:not(:disabled) {
+  background: #f0b45c;
+}
+
+button.run:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.form-aux {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px solid var(--hairline-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.form-aux label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+}
+
+.form-aux input[type="number"] {
+  width: 62px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--both);
+  width: 13px;
+  height: 13px;
+}
+
+/* --------------------------------------------------------------------------
+   Notices — provenance and honesty banners
+   -------------------------------------------------------------------------- */
+
+.notices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.notice {
+  border: 1px solid var(--hairline);
+  border-left-width: 3px;
+  background: var(--panel);
+  padding: 9px 13px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+}
+
+.notice b {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.notice.warn {
+  border-left-color: var(--win);
+}
+.notice.info {
+  border-left-color: var(--both);
+}
+.notice.sim {
+  border-left-color: var(--loss);
+}
+
+/* --------------------------------------------------------------------------
+   Readout — headline + AITC + progress
+   -------------------------------------------------------------------------- */
+
+.readout {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 26px;
+  align-items: start;
+}
+
+.headline {
+  font-family: var(--display);
+  font-size: 19px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  max-width: 62ch;
+}
+
+.headline .k {
+  color: var(--win);
+}
+
+.hero-figures {
+  display: flex;
+  gap: 26px;
+}
+
+.figure {
+  text-align: right;
+}
+
+.figure .value {
+  font-family: var(--mono);
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.figure .label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-top: 6px;
+}
+
+.progress {
+  margin-top: 14px;
+  height: 3px;
+  background: #16292680;
+  overflow: hidden;
+}
+
+.progress > i {
+  display: block;
+  height: 100%;
+  background: var(--both);
+  width: 0;
+  transition: width 0.18s linear;
+}
+
+.progress-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 6px;
+}
+
+/* --------------------------------------------------------------------------
+   Composition bar (§7.3) — one bar, not per-model cards
+   -------------------------------------------------------------------------- */
+
+.composition {
+  display: flex;
+  width: 100%;
+  height: 30px;
+  gap: var(--gap);
+  margin-bottom: 10px;
+}
+
+.composition > span {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #0d1a18;
+  min-width: 0;
+  overflow: hidden;
+  transition: flex-grow 0.3s ease;
+}
+
+.composition > span.seg-win {
+  background: var(--win);
+}
+.composition > span.seg-split {
+  background: var(--both);
+}
+.composition > span.seg-loss {
+  background: var(--loss);
+  color: #1b0d12;
+}
+.composition > span.empty {
+  display: none;
+}
+
+.composition-key {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.composition-key .sw {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  vertical-align: baseline;
+}
+
+/* --------------------------------------------------------------------------
+   The hero grid (§7.1) — a real table, because the data is tabular
+   -------------------------------------------------------------------------- */
+
+.grid-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.grid-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.grid-scroll {
+  overflow-x: auto;
+}
+
+/* Width is `auto`, not 100%. A full-width table lets the query column absorb
+   all the slack, pushing the model columns to the far right and leaving a gap
+   that makes a row impossible to trace across. Sizing to content keeps the
+   matrix reading as a matrix, and matches §7.5's "left-aligned, dense". */
+table.matrix {
+  border-collapse: separate;
+  border-spacing: 0 var(--gap);
+  width: auto;
+  font-size: 12px;
+}
+
+/* The visible explanation sits in the paragraph above the table, so the caption
+   is for assistive tech only. Clipped rather than `display:none`, which would
+   remove it from the accessibility tree along with the visual layout. */
+table.matrix caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+table.matrix thead th {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 400;
+  text-align: left;
+  padding: 0 8px 9px;
+  border-bottom: 1px solid var(--hairline);
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+table.matrix thead th.col-model {
+  text-align: center;
+  min-width: 104px;
+}
+
+table.matrix thead th .fam {
+  display: block;
+  font-size: 9px;
+  color: #4f6b66;
+  letter-spacing: 0.08em;
+  margin-top: 3px;
+}
+
+table.matrix tbody th {
+  font-weight: 400;
+  text-align: left;
+  padding: 0 10px 0 0;
+  vertical-align: middle;
+  max-width: 520px;
+}
+
+.qtext {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 520px;
+  display: block;
+}
+
+.qmeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.intent {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border: 1px solid var(--hairline);
+  padding: 1px 5px;
+  white-space: nowrap;
+  flex: none;
+}
+
+.qnum {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #486460;
+  width: 22px;
+  flex: none;
+}
+
+/* Framing-group separator: makes the §7.1 band contiguous and readable. */
+tr.group-head th {
+  padding-top: 12px;
+  padding-bottom: 4px;
+}
+
+tr.group-head .glabel {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border-top: 1px solid var(--hairline);
+  padding-top: 8px;
+  display: block;
+}
+
+table.matrix td {
+  padding: 0 var(--gap) 0 0;
+  vertical-align: middle;
+}
+
+/* Cell buttons carry both a fill and a glyph — colour is never the only cue. */
+button.cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+  min-width: 104px;
+  height: 27px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  cursor: pointer;
+  transition: filter 0.12s, transform 0.12s;
+  position: relative;
+}
+
+button.cell:hover {
+  filter: brightness(1.16);
+  z-index: 3;
+}
+
+button.cell.s-win {
+  background: var(--win);
+  color: #1a1206;
+}
+button.cell.s-loss {
+  background: var(--loss);
+  color: #1e0c12;
+}
+button.cell.s-both {
+  background: var(--both);
+  color: #06201d;
+}
+/* The recessive state gets a visible hairline so a 1.26:1 fill is never the
+   only thing distinguishing it from the surface. */
+button.cell.s-neither {
+  background: var(--neither);
+  color: var(--ink-3);
+  border-color: #2f403c;
+}
+button.cell.s-pending {
+  background: repeating-linear-gradient(
+    -45deg,
+    #162926,
+    #162926 3px,
+    #10201e 3px,
+    #10201e 6px
+  );
+  color: #3d534f;
+  cursor: default;
+}
+button.cell.s-error {
+  background: #1a1416;
+  border-color: var(--loss);
+  color: var(--loss);
+}
+
+button.cell .glyph {
+  font-weight: 700;
+}
+
+/* A cell where the target was named but not recommended, or a rival was
+   name-dropped, gets a corner tick — the presence nuance §7.2 asks for,
+   without collapsing the four-state encoding. */
+button.cell.has-aside::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid currentColor;
+  border-left: 5px solid transparent;
+  opacity: 0.5;
+}
+
+button.cell.selected {
+  box-shadow: 0 0 0 2px var(--ink);
+  z-index: 4;
+}
+
+/* Row / column cross-highlighting: reading a 20x3 grid needs it. */
+table.matrix tbody tr:hover th .qtext {
+  color: var(--ink);
+}
+table.matrix tbody tr:hover button.cell:not(.s-pending) {
+  filter: brightness(1.08);
+}
+
+/* Per-model footer strip: trust + RSI under each column */
+table.matrix tfoot td,
+table.matrix tfoot th {
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+  vertical-align: top;
+}
+
+.colstat {
+  text-align: center;
+  font-family: var(--mono);
+}
+
+.colstat .t {
+  font-size: 18px;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.colstat .r {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-top: 3px;
+}
+
+.badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border: 1px solid;
+  margin-top: 5px;
+}
+
+.badge.stable {
+  color: var(--both);
+  border-color: #2c645d;
+}
+.badge.mixed {
+  color: var(--win);
+  border-color: #6d5326;
+}
+.badge.fragile {
+  color: var(--loss);
+  border-color: #6b3541;
+}
+
+.badge.unmeasured {
+  color: var(--ink-3);
+  border-color: var(--hairline);
+}
+
+/* --------------------------------------------------------------------------
+   Legend — always present, because colour is never the sole encoding
+   -------------------------------------------------------------------------- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 12px;
+  color: var(--ink-2);
+  align-items: center;
+}
+
+.legend .item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend .key {
+  width: 30px;
+  height: 18px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  flex: none;
+  border: 1px solid transparent;
+}
+
+/* --------------------------------------------------------------------------
+   Head-to-head (§7.4)
+   -------------------------------------------------------------------------- */
+
+.h2h {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.h2h-block {
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: 13px;
+}
+
+.h2h-block:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.h2h-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.h2h-title .vs {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.h2h-title .name {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.h2h-title .agg {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.h2h-row {
+  display: grid;
+  grid-template-columns: 132px 1fr 132px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.h2h-row .who {
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.h2h-row .tally {
+  color: var(--ink-3);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Normalised bar: target share from the left, competitor share from the
+   right, a 2px surface gap between, ends rounded away from the baseline. */
+.h2hbar {
+  display: flex;
+  height: 20px;
+  gap: var(--gap);
+  background: #0d1a18;
+  border: 1px solid var(--hairline-soft);
+}
+
+.h2hbar > span {
+  display: flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  min-width: 0;
+  overflow: hidden;
+  transition: flex-grow 0.3s ease;
+}
+
+.h2hbar .b-win {
+  background: var(--win);
+  color: #1a1206;
+  justify-content: flex-start;
+  padding-left: 7px;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.h2hbar .b-tie {
+  background: var(--both);
+  color: #06201d;
+  justify-content: center;
+}
+
+.h2hbar .b-loss {
+  background: var(--loss);
+  color: #1e0c12;
+  justify-content: flex-end;
+  padding-right: 7px;
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.h2hbar > span.empty {
+  display: none;
+}
+
+.h2h-none {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  padding: 4px 0;
+}
+
+/* --------------------------------------------------------------------------
+   Evidence drawer (§7.2) — the score is inspectable, not asserted
+   -------------------------------------------------------------------------- */
+
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: #04090880;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s;
+  z-index: 40;
+}
+
+.drawer-scrim.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(620px, 100vw);
+  background: var(--panel);
+  border-left: 1px solid var(--hairline);
+  transform: translateX(100%);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer.open {
+  transform: translateX(0);
+}
+
+.drawer-top {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.drawer-top .state-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 7px;
+}
+
+.drawer-top .state-chip {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius);
+}
+
+.drawer-top .q {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.drawer-top .sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  margin-top: 6px;
+}
+
+button.close {
+  background: transparent;
+  border: 1px solid var(--hairline);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1;
+  padding: 5px 9px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  flex: none;
+}
+
+button.close:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+
+.drawer-body {
+  overflow-y: auto;
+  padding: 16px 20px 40px;
+}
+
+.drawer-section {
+  margin-bottom: 20px;
+}
+
+.drawer-section > h3 {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 400;
+  margin-bottom: 9px;
+}
+
+.verdicts {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.verdict-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 7px 9px;
+  background: #0d1a18;
+  font-size: 12.5px;
+}
+
+.verdict-row .nm {
+  font-weight: 500;
+}
+
+.verdict-row .nm.is-target {
+  color: var(--win);
+}
+
+.verdict-row .vd {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.vd.v-recommended {
+  color: var(--win);
+}
+.vd.v-mentioned {
+  color: var(--both);
+}
+.vd.v-absent {
+  color: var(--ink-3);
+}
+
+.verdict-row .prov {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.verdict-row .prov.disagree {
+  color: var(--loss);
+}
+
+.response {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  background: #0d1a18;
+  border: 1px solid var(--hairline-soft);
+  padding: 14px 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: none;
+}
+
+/* Highlights on matched names — the drawer shows exactly what it matched on. */
+mark.hit {
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom: 2px solid var(--both);
+  padding-bottom: 1px;
+}
+
+mark.hit.target {
+  border-bottom-color: var(--win);
+}
+
+.evidence-quote {
+  border-left: 2px solid var(--hairline);
+  padding: 4px 0 4px 12px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  font-style: italic;
+  margin-top: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Methodology footer
+   -------------------------------------------------------------------------- */
+
+.method {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  line-height: 1.65;
+}
+
+.method dl {
+  display: grid;
+  grid-template-columns: 168px 1fr;
+  gap: 8px 20px;
+  margin: 0;
+}
+
+.method dt {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  padding-top: 1px;
+}
+
+.method dd {
+  margin: 0;
+  max-width: 88ch;
+}
+
+.method code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+.hidden {
+  display: none !important;
+}
+
+@media (max-width: 1080px) {
+  form.query {
+    grid-template-columns: 1fr 1fr;
+  }
+  .readout {
+    grid-template-columns: 1fr;
+  }
+  .hero-figures {
+    justify-content: flex-start;
+  }
+  .figure {
+    text-align: left;
+  }
+  .method dl {
+    grid-template-columns: 1fr;
+    gap: 3px 0;
+  }
+  .method dt {
+    margin-top: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
+
+/* Forced-colors / high-contrast: fall back to borders + glyphs, which are
+   already present, so meaning survives when fills are overridden. */
+@media (forced-colors: active) {
+  button.cell {
+    border: 1px solid CanvasText;
+    forced-color-adjust: none;
+    background: Canvas;
+    color: CanvasText;
+  }
+  .composition > span,
+  .h2hbar > span {
+    border: 1px solid CanvasText;
+  }
+}

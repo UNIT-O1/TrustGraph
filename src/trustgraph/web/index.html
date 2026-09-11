@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TrustGraph — Recommendation Stability Tool</title>
+    <meta
+      name="description"
+      content="Measures how consistently production LLMs recommend a named entity across paraphrased queries. Trust Score, Recommendation Stability Index, and head-to-head rank per model."
+    />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+
+  <body>
+    <div class="shell">
+      <!-- ============================== masthead ============================== -->
+      <header class="masthead">
+        <div>
+          <div class="wordmark">
+            <h1>TrustGraph</h1>
+            <span class="tag">Recommendation Stability Tool</span>
+          </div>
+          <p class="lede">
+            Fires paraphrased, brand-neutral queries at several production LLMs and
+            records which vendor each model actually recommends. Reports a Trust
+            Score (Eq.&nbsp;3), a Recommendation Stability Index (Eq.&nbsp;5), and a
+            head-to-head win rate — per model and combined. The hero is the grid,
+            not the average: an aggregate percentage hides the phrasings where a
+            recommendation is fragile.
+          </p>
+        </div>
+        <div class="roster-chips" id="roster-chips" aria-label="Configured providers"></div>
+      </header>
+
+      <!-- ================================ input ================================ -->
+      <section class="panel" aria-labelledby="input-h">
+        <h2 id="input-h">Subject</h2>
+        <form class="query" id="run-form" autocomplete="off">
+          <div class="field">
+            <label for="entity">Entity</label>
+            <input type="text" id="entity" name="entity" value="Razorpay" required />
+          </div>
+          <div class="field">
+            <label for="category">Category / use case</label>
+            <input
+              type="text"
+              id="category"
+              name="category"
+              value="payment gateway for an Indian D2C startup"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="competitors">Competitors (comma-separated)</label>
+            <input
+              type="text"
+              id="competitors"
+              name="competitors"
+              value="Stripe, PayU, Cashfree"
+            />
+          </div>
+          <button type="submit" class="run" id="run-btn">Run measurement</button>
+
+          <div class="form-aux">
+            <label for="count">
+              Paraphrases
+              <input type="number" id="count" min="4" max="40" value="18" />
+            </label>
+            <label>
+              <input type="checkbox" id="recheck" checked />
+              LLM extraction re-check
+            </label>
+            <label>
+              <input type="checkbox" id="fresh" />
+              Bypass cache (live calls)
+            </label>
+            <span id="call-estimate" class="mono"></span>
+          </div>
+        </form>
+      </section>
+
+      <!-- =============================== notices =============================== -->
+      <div class="notices" id="notices"></div>
+
+      <!-- =============================== readout =============================== -->
+      <section class="panel hidden" id="readout-panel" aria-labelledby="readout-h">
+        <h2 id="readout-h">Result</h2>
+        <div class="readout">
+          <div>
+            <p class="headline" id="headline">Waiting for a run.</p>
+            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar">
+              <i id="progress-fill"></i>
+            </div>
+            <div class="progress-label mono" id="progress-label"></div>
+          </div>
+          <div class="hero-figures">
+            <div class="figure">
+              <div class="value mono" id="fig-aitc">—</div>
+              <div class="label">AITC · cross-model</div>
+            </div>
+            <div class="figure">
+              <div class="value mono" id="fig-consensus">—</div>
+              <div class="label">Unanimous wins</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================= composition ============================= -->
+      <section class="panel hidden" id="composition-panel" aria-labelledby="composition-h">
+        <h2 id="composition-h">Cross-model consensus &mdash; composition of phrasings</h2>
+        <div
+          class="composition"
+          id="composition"
+          role="img"
+          aria-label="Composition of phrasings by cross-model agreement"
+        ></div>
+        <div class="composition-key" id="composition-key"></div>
+        <p class="panel-note" id="composition-note"></p>
+      </section>
+
+      <!-- ================================= grid ================================= -->
+      <section class="panel hidden" id="grid-panel" aria-labelledby="grid-h">
+        <div class="grid-head">
+          <h2 id="grid-h">Phrasing &times; model &mdash; outcome grid</h2>
+          <div class="grid-controls">
+            <label>
+              <input type="checkbox" id="group-by-intent" checked />
+              Group rows by framing
+            </label>
+            <span class="muted">Click any cell for the response that produced it</span>
+          </div>
+        </div>
+
+        <p class="panel-note" style="margin-top: 0; margin-bottom: 14px">
+          Each cell is one model's answer to one phrasing, classified into the four
+          states below. Cells are buttons — activate one to read the response text
+          behind it. A red band confined to one framing (say, every "cheapest"
+          phrasing) is the finding; an averaged score cannot show it.
+        </p>
+
+        <div class="grid-scroll">
+          <table class="matrix" id="matrix">
+            <caption id="matrix-caption"></caption>
+          </table>
+        </div>
+
+        <div class="legend" id="legend" style="margin-top: 16px"></div>
+        <p class="panel-note">
+          Four states, not two. Collapsing <em>Both</em> into <em>Win</em>, or
+          <em>Neither</em> into <em>Loss</em>, would discard the distinction between
+          winning outright and merely appearing alongside a competitor — which is
+          the vanity-metric collapse this instrument exists to avoid. A corner tick
+          marks a cell where a tracked name was present but not recommended.
+        </p>
+      </section>
+
+      <!-- =============================== head-to-head =============================== -->
+      <section class="panel hidden" id="h2h-panel" aria-labelledby="h2h-h">
+        <h2 id="h2h-h">Head-to-head</h2>
+        <div class="h2h" id="h2h"></div>
+        <p class="panel-note">
+          Normalised over phrasings where at least one of the two was actually
+          recommended, so off-axis answers cannot drag every rate toward 50%.
+          Ties are phrasings that recommended both.
+        </p>
+      </section>
+
+      <!-- =============================== methodology =============================== -->
+      <section class="panel hidden" id="method-panel" aria-labelledby="method-h">
+        <h2 id="method-h">Methodology &amp; measurement boundary</h2>
+        <div class="method">
+          <dl>
+            <dt>Trust score</dt>
+            <dd>
+              <code>Trust(e,c,m) = responses recommending e / total paraphrases</code>
+              — Eq.&nbsp;(3). A binary indicator per response; "recommended" excludes
+              names that appear only as a caveat, a counterexample, or a rejected
+              alternative.
+            </dd>
+
+            <dt>RSI</dt>
+            <dd>
+              <code>RSI = 1 − Var/0.25</code> — Eq.&nbsp;(5), where 0.25 is the maximum
+              variance of a {0,1} indicator. Note the direction: RSI measures
+              <em>consistency</em>, so an entity recommended in 0% of phrasings is as
+              "stable" as one recommended in 100%. Each badge therefore states its
+              direction rather than showing the number alone.
+            </dd>
+
+            <dt>AITC</dt>
+            <dd>
+              §3.5 writes AITC as the weighted sum <code>Σ w·Trust</code>. Taken
+              literally that is unbounded and not comparable to Trust, so this
+              implementation normalises by <code>Σ w</code> — a weighted mean on
+              [0,1], in the same units as Trust. Weights are a stated market-share
+              prior, not a measurement.
+            </dd>
+
+            <dt>Extraction</dt>
+            <dd>
+              Two independent passes. A boundary-anchored matcher establishes
+              presence; a structured LLM call judges recommendation. The matcher is
+              authoritative on presence, the model on recommendation, and any
+              model-only mention must be backed by a verbatim span that genuinely
+              occurs in the response — otherwise a hallucinated mention would
+              fabricate a Win. Agreement between passes is reported, not hidden.
+            </dd>
+
+            <dt>Temperature</dt>
+            <dd>
+              Sampling temperature is pinned to 0 wherever the provider allows it.
+              RSI is defined as variance across <em>phrasings</em>; leaving sampling
+              free would mix in sampling noise and change what the number means.
+            </dd>
+
+            <dt>Not measured</dt>
+            <dd>
+              Why a model recommends something; training-data attribution;
+              pretrain / fine-tune / RLHF contribution; any ground-truth internal
+              "trust" representation — none exists. This measures the
+              <em>behavioural shadow</em> of a latent structure, not the structure
+              itself (Table&nbsp;1).
+            </dd>
+
+            <dt>Deliberately skipped</dt>
+            <dd>
+              No source-corroboration graph, no HITS iteration, no web-authority
+              seeding, no longitudinal storage. Those stay in the paper as the theory
+              explaining why a cross-model, paraphrase-averaged score is the right
+              thing to measure — they are not on this artefact's critical path.
+            </dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============================ evidence drawer ============================ -->
+    <div class="drawer-scrim" id="scrim"></div>
+    <aside
+      class="drawer"
+      id="drawer"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="drawer-title"
+      aria-hidden="true"
+    >
+      <div class="drawer-top">
+        <div>
+          <div class="state-line">
+            <span class="state-chip mono" id="drawer-state"></span>
+            <span class="mono muted" id="drawer-model"></span>
+          </div>
+          <div class="q" id="drawer-title"></div>
+          <div class="sub" id="drawer-sub"></div>
+        </div>
+        <button class="close" id="drawer-close" aria-label="Close evidence panel">&times;</button>
+      </div>
+      <div class="drawer-body">
+        <div class="drawer-section">
+          <h3>Verdicts &amp; extraction provenance</h3>
+          <div class="verdicts" id="drawer-verdicts"></div>
+        </div>
+        <div class="drawer-section">
+          <h3>Model response &mdash; matched names highlighted</h3>
+          <div class="response" id="drawer-response"></div>
+        </div>
+      </div>
+    </aside>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
